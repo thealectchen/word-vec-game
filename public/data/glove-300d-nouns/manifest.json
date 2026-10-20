@@ -1,0 +1,12 @@
+{
+  "format": "word-vectors/int8-v1",
+  "id": "glove-300d-nouns",
+  "name": "GloVe 300d (Wikipedia + Gigaword)",
+  "attribution": "GloVe by Pennington, Socher & Manning (2014), nlp.stanford.edu/projects/glove",
+  "license": "PDDL-1.0",
+  "dimensions": 300,
+  "wordCount": 18910,
+  "answerCount": 10100,
+  "words": "words.txt",
+  "vectors": "vectors.bin"
+}

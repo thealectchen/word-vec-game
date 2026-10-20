@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="description" content="Get from one word to another with word-vector arithmetic. A daily word puzzle." />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#121213" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>Vectordle</title>
+  </head>
+  <body>
+    <header class="topbar">
+      <button class="icon-btn" id="help-btn" type="button" aria-label="How to play">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"/></svg>
+      </button>
+      <h1 class="title">Vectordle</h1>
+      <button class="icon-btn" id="stats-btn" type="button" aria-label="Statistics">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 11V3H8v6H2v12h20V11h-6zm-6-6h4v14h-4V5zm-6 6h4v8H4v-8zm16 8h-4v-6h4v6z"/></svg>
+      </button>
+    </header>
+
+    <main class="game">
+      <div class="mode-tabs" role="tablist" aria-label="Game mode">
+        <button class="mode-tab" role="tab" type="button" data-mode="daily" aria-selected="true">Daily</button>
+        <button class="mode-tab" role="tab" type="button" data-mode="unlimited" aria-selected="false">Unlimited</button>
+      </div>
+
+      <section class="loading" id="loading">
+        <p class="loading-title" id="loading-title">Loading word vectors…</p>
+        <div class="progress" aria-hidden="true"><div class="progress-fill" id="progress-fill"></div></div>
+        <p class="loading-detail" id="loading-detail"></p>
+      </section>
+
+      <section class="board" id="board" hidden>
+        <div class="pair">
+          <div class="pair-item">
+            <span class="label">Start</span>
+            <span class="tile" id="start-tile"></span>
+          </div>
+          <span class="pair-arrow" aria-hidden="true">→</span>
+          <div class="pair-item">
+            <span class="label">Goal</span>
+            <span class="tile tier-goal" id="goal-tile"></span>
+          </div>
+        </div>
+
+        <ol class="history" id="history" aria-label="Your steps"></ol>
+
+        <div class="current" id="current" aria-live="polite">
+          <span class="label" id="current-label">You are at</span>
+          <span class="tile tile-lg" id="current-tile"></span>
+          <div class="meter" aria-hidden="true"><div class="meter-fill" id="meter-fill"></div></div>
+          <p class="meter-text" id="meter-text"></p>
+        </div>
+
+        <form class="move" id="move-form" autocomplete="off" novalidate>
+          <div class="op-toggle" role="radiogroup" aria-label="Add or subtract">
+            <button class="op-btn" type="button" role="radio" data-op="add" aria-checked="true" aria-label="Add">+</button>
+            <button class="op-btn" type="button" role="radio" data-op="subtract" aria-checked="false" aria-label="Subtract">−</button>
+          </div>
+          <input
+            class="word-input"
+            id="word-input"
+            type="text"
+            name="word"
+            placeholder="Type a noun"
+            aria-label="Noun to add or subtract"
+            autocomplete="off"
+            autocapitalize="none"
+            autocorrect="off"
+            spellcheck="false"
+            enterkeyhint="go"
+            maxlength="32"
+          />
+          <button class="go-btn" type="submit">Go</button>
+        </form>
+
+        <div class="finished" id="finished" hidden>
+          <p class="finished-text" id="finished-text"></p>
+          <div class="finished-actions" id="finished-actions"></div>
+        </div>
+
+        <div class="board-footer">
+          <span id="step-count"></span>
+          <button class="text-btn" id="give-up-btn" type="button">Give up</button>
+        </div>
+      </section>
+    </main>
+
+    <dialog class="dialog" id="help-dialog" aria-labelledby="help-title">
+      <div class="dialog-inner" tabindex="-1" autofocus>
+        <button class="icon-btn dialog-close" type="button" aria-label="Close" data-close>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+        <h2 id="help-title">How to play</h2>
+        <p class="lede">Get from the <strong>start</strong> word to the <strong>goal</strong> word in as few steps as possible.</p>
+        <ul class="rules">
+          <li>Each step, type any noun and choose <strong>+</strong> to add it to your current word or <strong>−</strong> to subtract it.</li>
+          <li>Every word is a vector of numbers. The game adds or subtracts the two vectors, then lands on the noun closest to the result. That becomes your new word.</li>
+          <li>Typing <kbd>-word</kbd> or <kbd>+word</kbd> picks the operation for you.</li>
+        </ul>
+        <h3>Example</h3>
+        <div class="example" aria-label="king minus man lands on queen">
+          <span class="tile tile-sm">king</span>
+          <span class="example-op">− man →</span>
+          <span class="tile tile-sm tier-hot">queen</span>
+        </div>
+        <h3>Closeness to the goal</h3>
+        <ul class="legend">
+          <li><span class="swatch tier-cold"></span><span><strong>Cold</strong>: not among the goal's 1,000 nearest words</span></li>
+          <li><span class="swatch tier-warm"></span><span><strong>Warm</strong>: in the goal's 1,000 nearest words</span></li>
+          <li><span class="swatch tier-hot"></span><span><strong>Hot</strong>: in the goal's 100 nearest words</span></li>
+          <li><span class="swatch tier-goal"></span><span><strong>Goal</strong>: you made it!</span></li>
+        </ul>
+        <p>A new <strong>Daily</strong> puzzle every day, the same for everyone. Play <strong>Unlimited</strong> for as many random rounds as you like.</p>
+        <p class="credits" id="credits"></p>
+      </div>
+    </dialog>
+
+    <dialog class="dialog" id="stats-dialog" aria-labelledby="stats-title">
+      <div class="dialog-inner" tabindex="-1" autofocus>
+        <button class="icon-btn dialog-close" type="button" aria-label="Close" data-close>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+        <h2 id="stats-title">Statistics</h2>
+        <div id="stats-body"></div>
+      </div>
+    </dialog>
+
+    <dialog class="dialog" id="result-dialog" aria-labelledby="result-title">
+      <div class="dialog-inner" tabindex="-1" autofocus>
+        <button class="icon-btn dialog-close" type="button" aria-label="Close" data-close>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+        <div id="result-body"></div>
+      </div>
+    </dialog>
+
+    <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

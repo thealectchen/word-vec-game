@@ -1,0 +1,12 @@
+# Function words that WordNet happens to list as nouns (e.g. "can", "will",
+# "one"). They are never accepted as input or produced as a result.
+a an the and or but if of at by for with about against between into through
+during before after above below to from up down in out on off over under again
+further then once here there when where why how all any both each few more most
+other some such no nor not only own same so than too very can will just should
+now may might must shall would could ought i me my myself we our ours you your
+he him his she her it its they them their what which who whom this that these
+those am is are was were be been being have has had having do does did doing
+one two three four five six seven eight nine ten eleven twelve twenty thirty
+forty fifty hundred thousand million billion trillion mr mrs ms dr st jr inc
+ltd co corp yes ok okay hello oh ah

@@ -1,0 +1,29 @@
+# Modern nouns that WordNet (2006) does not know about. They are treated as
+# nouns as long as the vector source contains them.
+app
+blog
+blogger
+broadband
+chatbot
+cryptocurrency
+cyberspace
+download
+email
+emoji
+hashtag
+influencer
+podcast
+selfie
+smartphone
+smartwatch
+spam
+streaming
+tablet
+texting
+tweet
+upload
+username
+webcam
+webpage
+website
+wifi

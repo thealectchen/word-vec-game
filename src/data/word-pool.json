@@ -1,0 +1,15 @@
+{
+  "description": "Start and goal words are picked from this list. Every word here is always included in the answer vocabulary when the embedding dataset is built (see scripts/build_vectors.py), so keep the build in sync after editing. Changing this list (or its order) changes which daily puzzle appears on which date.",
+  "words": [
+    "water", "house", "car", "book", "money", "food", "door", "tree", "dog", "city",
+    "school", "king", "fire", "river", "island", "road", "sea", "mountain", "church", "hospital",
+    "phone", "horse", "ship", "bird", "gold", "music", "baby", "doctor", "garden", "sun",
+    "moon", "star", "rain", "snow", "ice", "forest", "ocean", "beach", "desert", "flower",
+    "apple", "bread", "cheese", "coffee", "wine", "milk", "egg", "cake", "chicken", "fish",
+    "cat", "cow", "lion", "bear", "wolf", "snake", "mouse", "train", "boat", "bus",
+    "plane", "bridge", "castle", "prison", "farm", "village", "kitchen", "window", "table", "chair",
+    "bed", "computer", "television", "camera", "clock", "key", "box", "bottle", "knife", "sword",
+    "gun", "ball", "guitar", "piano", "queen", "soldier", "teacher", "farmer", "child", "mother",
+    "father", "shoe", "hat", "shirt", "heart", "eye", "hand", "blood", "stone", "cloud"
+  ]
+}
