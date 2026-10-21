@@ -26,6 +26,11 @@ export interface NearestOptions {
   k?: number;
   /** Words that must not appear in the results. */
   exclude?: Iterable<string>;
+  /**
+   * Which words to search: 'answers' (default) are the words a step can land
+   * on; 'all' also includes words that can only be typed.
+   */
+  among?: 'answers' | 'all';
 }
 
 export interface EmbeddingProvider {
@@ -38,8 +43,9 @@ export interface EmbeddingProvider {
   getVector(word: string): Promise<Float32Array | null>;
 
   /**
-   * The words closest to `vector` by cosine similarity, best first. Only words
-   * that a step is allowed to land on (the "answer" vocabulary) are returned.
+   * The words closest to `vector` by cosine similarity, best first. By default
+   * only words a step is allowed to land on (the "answer" vocabulary) are
+   * searched; see NearestOptions.among.
    */
   nearest(vector: Float32Array, options?: NearestOptions): Promise<Neighbor[]>;
 }

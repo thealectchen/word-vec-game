@@ -106,7 +106,8 @@ export class StaticVectorProvider implements EmbeddingProvider {
     const topScores: number[] = [];
     const topIndices: number[] = [];
     const { rows, dims } = this;
-    for (let i = 0; i < this.answerCount; i++) {
+    const count = options.among === 'all' ? this.words.length : this.answerCount;
+    for (let i = 0; i < count; i++) {
       const offset = i * dims;
       let sum = 0;
       for (let j = 0; j < dims; j++) sum += rows[offset + j] * vector[j];

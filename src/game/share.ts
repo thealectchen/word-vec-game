@@ -8,8 +8,9 @@ export function shareText(round: Round, gameName: string, url?: string): string 
   const stepWord = steps === 1 ? 'step' : 'steps';
   const title = round.mode === 'daily' && round.puzzle !== null ? `${gameName} #${round.puzzle}` : `${gameName} (unlimited)`;
   const outcome = round.status === 'won' ? `${steps} ${stepWord}` : `gave up after ${steps} ${stepWord}`;
+  const hints = round.hints > 0 ? ` · ${round.hints} ${round.hints === 1 ? 'hint' : 'hints'}` : '';
   const lines = [
-    `${title} · ${outcome}`,
+    `${title} · ${outcome}${hints}`,
     `${round.start.toUpperCase()} → ${round.goal.toUpperCase()}`,
     round.steps.map((s) => TIER_EMOJI[s.closeness.tier]).join('') + (round.status === 'gave-up' ? '❌' : ''),
   ];

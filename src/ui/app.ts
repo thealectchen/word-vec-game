@@ -6,6 +6,7 @@ import {
   MoveError,
   type Closeness,
   type Engine,
+  type Hint,
   type Mode,
   type Operation,
   type Round,
@@ -36,6 +37,8 @@ export class App {
   private pool: string[] = [];
   private giveUpArmedUntil = 0;
   private giveUpTimer: number | undefined;
+  /** The hint shown for the current position (see hintKey). */
+  private shownHint: { key: string; hint: Hint } | null = null;
 
   private readonly el = {
     tabs: [...document.querySelectorAll<HTMLButtonElement>('.mode-tab')],
@@ -55,6 +58,8 @@ export class App {
     finishedText: $('#finished-text'),
     finishedActions: $('#finished-actions'),
     stepCount: $('#step-count'),
+    hintButton: $<HTMLButtonElement>('#hint-btn'),
+    hintText: $('#hint-text'),
     giveUp: $<HTMLButtonElement>('#give-up-btn'),
     helpDialog: $<HTMLDialogElement>('#help-dialog'),
     statsDialog: $<HTMLDialogElement>('#stats-dialog'),
@@ -159,6 +164,7 @@ export class App {
     this.busy = true;
     try {
       this.el.resultDialog.close();
+      this.shownHint = null;
       this.setRound(await this.newUnlimitedRound());
       if (this.mode !== 'unlimited') {
         this.mode = 'unlimited';
@@ -219,6 +225,41 @@ export class App {
     for (const button of this.el.opButtons) {
       button.setAttribute('aria-checked', String(button.dataset.op === op));
     }
+  }
+
+  private async showHint(): Promise<void> {
+    const round = this.round;
+    if (this.busy || round.status !== 'playing') return;
+    const key = hintKey(round);
+    if (this.shownHint?.key !== key) {
+      this.busy = true;
+      this.el.hintButton.disabled = true;
+      this.el.hintButton.textContent = 'Thinking…';
+      try {
+        await nextPaint(); // show "Thinking…" before the search occupies the page
+        const hint = await this.engine.hint(round);
+        if (!hint) {
+          toast('No hint available');
+          return;
+        }
+        this.shownHint = { key, hint };
+        // Only the first request at each position counts as a hint.
+        this.setRound({ ...round, hints: round.hints + 1 });
+      } catch (error) {
+        console.error(error);
+        toast('Could not work out a hint');
+        return;
+      } finally {
+        this.busy = false;
+        this.el.hintButton.disabled = false;
+        this.el.hintButton.textContent = 'Hint';
+      }
+    }
+    this.render();
+    const { hint } = this.shownHint;
+    this.el.input.value = `${hint.op === 'add' ? '+' : '-'}${hint.word}`;
+    this.showOp(hint.op);
+    this.el.input.focus();
   }
 
   private giveUp(): void {
@@ -310,6 +351,7 @@ export class App {
       void this.submitMove();
     });
     this.el.giveUp.addEventListener('click', () => this.giveUp());
+    this.el.hintButton.addEventListener('click', () => void this.showHint());
     $('#help-btn').addEventListener('click', () => this.el.helpDialog.showModal());
     $('#stats-btn').addEventListener('click', () => this.openStats());
 
@@ -356,15 +398,22 @@ export class App {
     this.el.meterText.textContent = describeCloseness(closeness);
 
     const steps = round.steps.length;
-    this.el.stepCount.textContent = `${steps} ${steps === 1 ? 'step' : 'steps'}`;
+    const stepText = `${steps} ${steps === 1 ? 'step' : 'steps'}`;
+    const hintText = round.hints ? `${round.hints} ${round.hints === 1 ? 'hint' : 'hints'}` : '';
+    this.el.stepCount.textContent = hintText ? `${stepText} · ${hintText}` : stepText;
     this.el.form.hidden = !playing;
     this.el.giveUp.hidden = !playing;
+    this.el.hintButton.hidden = !playing;
     this.el.finished.hidden = playing;
+
+    const hint = playing && this.shownHint?.key === hintKey(round) ? this.shownHint.hint : null;
+    this.el.hintText.hidden = !hint;
+    if (hint) this.el.hintText.replaceChildren(...describeHint(hint));
+
     if (!playing) {
+      const withHints = hintText ? ` (${hintText})` : '';
       this.el.finishedText.textContent =
-        round.status === 'won'
-          ? `Solved in ${steps} ${steps === 1 ? 'step' : 'steps'}!`
-          : `You gave up after ${steps} ${steps === 1 ? 'step' : 'steps'}.`;
+        round.status === 'won' ? `Solved in ${stepText}${withHints}!` : `You gave up after ${stepText}${withHints}.`;
       this.el.finishedActions.replaceChildren(...this.finishedActions(false));
     }
 
@@ -427,7 +476,8 @@ export class App {
         'p',
         { class: 'lede' },
         won
-          ? `You got from ${round.start.toUpperCase()} to ${round.goal.toUpperCase()} in ${steps} ${steps === 1 ? 'step' : 'steps'}.`
+          ? `You got from ${round.start.toUpperCase()} to ${round.goal.toUpperCase()} in ${steps} ${steps === 1 ? 'step' : 'steps'}` +
+              (round.hints ? ` with ${round.hints} ${round.hints === 1 ? 'hint' : 'hints'}.` : '.')
           : `The goal was ${round.goal.toUpperCase()}.`,
       ),
       path,
@@ -469,6 +519,23 @@ function renderStep(step: Step, index: number, isNew: boolean): HTMLLIElement {
     h('span', { class: `tile tile-sm tier-${tier}` }, step.result),
     h('span', { class: 'step-score', title: 'Closeness to the goal (0-100)' }, step.closeness.score),
   );
+}
+
+/** Identifies a position in a round; a hint is only valid for the position it was made for. */
+function hintKey(round: Round): string {
+  return [round.mode, round.puzzle, round.start, round.goal, round.steps.length].join('|');
+}
+
+function describeHint(hint: Hint): (string | Node)[] {
+  const move = h('strong', null, `${OP_SYMBOL[hint.op]} ${hint.word}`);
+  return hint.improves
+    ? ['💡 Try ', move]
+    : ['💡 No single word gets you closer from here. Your best bet: ', move];
+}
+
+/** Resolves after the browser has painted pending DOM changes. */
+function nextPaint(): Promise<void> {
+  return new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
 }
 
 function describeCloseness(c: Closeness): string {

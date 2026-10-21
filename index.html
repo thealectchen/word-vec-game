@@ -81,9 +81,14 @@
           <div class="finished-actions" id="finished-actions"></div>
         </div>
 
+        <p class="hint-text" id="hint-text" aria-live="polite" hidden></p>
+
         <div class="board-footer">
           <span id="step-count"></span>
-          <button class="text-btn" id="give-up-btn" type="button">Give up</button>
+          <div class="footer-actions">
+            <button class="text-btn" id="hint-btn" type="button">Hint</button>
+            <button class="text-btn" id="give-up-btn" type="button">Give up</button>
+          </div>
         </div>
       </section>
     </main>
@@ -98,7 +103,9 @@
         <ul class="rules">
           <li>Each step, type any noun and choose <strong>+</strong> to add it to your current word or <strong>−</strong> to subtract it.</li>
           <li>Every word is a vector of numbers. The game adds or subtracts the two vectors, then lands on the noun closest to the result. That becomes your new word.</li>
+          <li>You never land on your current word, the word you typed, or another form of either (typing <em>hands</em> can't land on <em>hand</em>).</li>
           <li>Typing <kbd>-word</kbd> or <kbd>+word</kbd> picks the operation for you.</li>
+          <li>Stuck? <strong>Hint</strong> works out the word that moves you closest to the goal. Hints show up in your shared result.</li>
         </ul>
         <h3>Example</h3>
         <div class="example" aria-label="king minus man lands on queen">

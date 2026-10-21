@@ -39,7 +39,8 @@ function looksLikeRound(value: unknown): value is Round {
 
 export function loadRound(mode: Mode): Round | null {
   const round = read<unknown>(`round:${mode}`);
-  return looksLikeRound(round) && round.mode === mode ? round : null;
+  // Rounds saved before hints existed have no hint count.
+  return looksLikeRound(round) && round.mode === mode ? { ...round, hints: round.hints ?? 0 } : null;
 }
 
 export function saveRound(round: Round): void {

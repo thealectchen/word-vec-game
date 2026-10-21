@@ -1,6 +1,6 @@
 import type { EmbeddingProvider } from '../embeddings';
 import { combine, cosine } from '../embeddings/vectorMath';
-import { singularCandidates } from './inflection';
+import { singularCandidates, wordForms } from './inflection';
 
 export type Operation = 'add' | 'subtract';
 export type Mode = 'daily' | 'unlimited';
@@ -40,6 +40,19 @@ export interface Round {
   startCloseness: Closeness;
   steps: Step[];
   status: RoundStatus;
+  /** How many hints were used (shown in the shared result). */
+  hints: number;
+}
+
+/** A suggested move from the current word. */
+export interface Hint {
+  op: Operation;
+  word: string;
+  /** Where the move lands. */
+  result: string;
+  closeness: Closeness;
+  /** Whether the move gets closer to the goal than the current word. */
+  improves: boolean;
 }
 
 export type ParsedMove =
@@ -60,9 +73,11 @@ export interface EngineOptions {
   hotRank: number;
   /** Ranks up to this are "warm". */
   warmRank: number;
+  /** How many candidate words per operation a hint tries out. */
+  hintCandidates: number;
 }
 
-const DEFAULT_OPTIONS: EngineOptions = { rankDepth: 1000, hotRank: 100, warmRank: 1000 };
+const DEFAULT_OPTIONS: EngineOptions = { rankDepth: 1000, hotRank: 100, warmRank: 1000, hintCandidates: 40 };
 
 /** A move the rules don't allow; the message is meant for the player. */
 export class MoveError extends Error {}
@@ -99,6 +114,7 @@ export class Engine {
       startCloseness: await this.closeness(start, goal),
       steps: [],
       status: 'playing',
+      hints: 0,
     };
   }
 
@@ -121,28 +137,74 @@ export class Engine {
     return { ok: false, reason: 'unknown', message: 'Not in the noun list' };
   }
 
-  /**
-   * Apply `current ± operand` and land on the nearest noun. The current word
-   * and the operand are excluded from the result, as in classic word-vector
-   * analogies (otherwise most steps would land back where they started).
-   */
   async play(round: Round, op: Operation, operand: string): Promise<Round> {
     if (round.status !== 'playing') throw new Error('This round is already over');
     const from = currentWord(round);
     if (op === 'subtract' && operand === from) throw new MoveError('A word minus itself is nothing');
-    const [a, b] = await Promise.all([this.provider.getVector(from), this.provider.getVector(operand)]);
-    if (!a) throw new Error(`No vector for "${from}"`);
-    if (!b) throw new Error(`No vector for "${operand}"`);
-
-    const target = combine(a, b, op === 'add' ? 1 : -1);
-    const [best] = await this.provider.nearest(target, { k: 1, exclude: [from, operand] });
-    if (!best) throw new Error('The vocabulary has no words to land on');
-
-    const step: Step = { from, op, operand, result: best.word, closeness: await this.closeness(best.word, round.goal) };
+    const result = await this.land(from, op, operand);
+    const step: Step = { from, op, operand, result, closeness: await this.closeness(result, round.goal) };
     return {
       ...round,
       steps: [...round.steps, step],
-      status: best.word === round.goal ? 'won' : 'playing',
+      status: result === round.goal ? 'won' : 'playing',
+    };
+  }
+
+  /**
+   * Where `from ± operand` lands: the nearest noun to the combined vector.
+   * Every form of the current word and of the operand is excluded, as in
+   * classic word-vector analogies (otherwise most steps would land back where
+   * they started, and typing "hands" would land on "hand").
+   */
+  private async land(from: string, op: Operation, operand: string, fromVector?: Float32Array): Promise<string> {
+    const [a, b] = await Promise.all([fromVector ?? this.provider.getVector(from), this.provider.getVector(operand)]);
+    if (!a) throw new Error(`No vector for "${from}"`);
+    if (!b) throw new Error(`No vector for "${operand}"`);
+    const target = combine(a, b, op === 'add' ? 1 : -1);
+    const [best] = await this.provider.nearest(target, { k: 1, exclude: [...wordForms(from), ...wordForms(operand)] });
+    if (!best) throw new Error('The vocabulary has no words to land on');
+    return best.word;
+  }
+
+  /**
+   * Suggest the move that gets closest to the goal. The ideal step is the
+   * vector `goal - current`, so the typeable words nearest to that direction
+   * are tried as "+ word", and those nearest to `current - goal` as
+   * "- word". Each is played out under the real rules and the one that lands
+   * closest to the goal wins.
+   */
+  async hint(round: Round): Promise<Hint | null> {
+    if (round.status !== 'playing') return null;
+    const from = currentWord(round);
+    const [current, goal] = await Promise.all([this.provider.getVector(from), this.provider.getVector(round.goal)]);
+    if (!current || !goal) return null;
+
+    const k = this.options.hintCandidates;
+    const exclude = wordForms(from);
+    const [toward, away] = await Promise.all([
+      this.provider.nearest(combine(goal, current, -1), { k, exclude, among: 'all' }),
+      this.provider.nearest(combine(current, goal, -1), { k, exclude, among: 'all' }),
+    ]);
+    const candidates: [Operation, string][] = [
+      ...toward.map((n): [Operation, string] => ['add', n.word]),
+      ...away.map((n): [Operation, string] => ['subtract', n.word]),
+    ];
+
+    let best: { op: Operation; word: string; result: string; similarity: number } | null = null;
+    for (const [op, word] of candidates) {
+      const result = await this.land(from, op, word, current);
+      const resultVector = await this.provider.getVector(result);
+      const similarity = result === round.goal ? 2 : resultVector ? cosine(resultVector, goal) : -1;
+      if (!best || similarity > best.similarity) best = { op, word, result, similarity };
+      if (similarity === 2) break;
+    }
+    if (!best) return null;
+    return {
+      op: best.op,
+      word: best.word,
+      result: best.result,
+      closeness: await this.closeness(best.result, round.goal),
+      improves: best.similarity > cosine(current, goal),
     };
   }
 

@@ -31,6 +31,28 @@ describe(`dataset ${DEFAULT_DATASET}`, () => {
     for (const word of ['run', 'years', 'while']) expect(answers.has(word)).toBe(false);
   });
 
+  it('closes the plural loophole: typing "hands" never lands on "hand"', async () => {
+    const engine = new Engine(provider);
+    for (const start of ['animal', 'horse', 'computer']) {
+      const round = await engine.play(await engine.newRound('unlimited', start, 'hand'), 'add', 'hands');
+      expect(round.steps[0].result).not.toBe('hand');
+    }
+  });
+
+  it('finds hints quickly, and they land where they say', async () => {
+    const engine = new Engine(provider);
+    for (const [start, goal] of [['horse', 'computer'], ['egg', 'cow'], ['fire', 'milk']]) {
+      const round = await engine.newRound('unlimited', start, goal);
+      const t0 = performance.now();
+      const hint = (await engine.hint(round))!;
+      const ms = performance.now() - t0;
+      const played = await engine.play(round, hint.op, hint.word);
+      console.log(`hint ${start} -> ${goal}: ${hint.op} ${hint.word} -> ${hint.result} (${hint.closeness.tier}) in ${ms.toFixed(0)} ms`);
+      expect(played.steps[0].result).toBe(hint.result);
+      expect(ms).toBeLessThan(5000);
+    }
+  });
+
   it('does the classic analogy', async () => {
     const engine = new Engine(provider);
     const round = await engine.play(await engine.newRound('unlimited', 'king', 'queen'), 'subtract', 'man');

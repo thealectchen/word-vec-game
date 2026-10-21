@@ -9,6 +9,7 @@ KING − man → QUEEN
 - **Daily** mode: the same start/goal pair for everyone each day, with streaks and a spoiler-free share card.
 - **Unlimited** mode: random pairs, as many rounds as you like.
 - **Closeness meter**: after every step you see how near you are to the goal. Cold means outside the goal's 1,000 nearest words, warm means inside them, hot means inside its 100 nearest.
+- **Hints**: suggests the noun that moves you closest to the goal. Hints used appear in the shared result.
 - Works on phones and desktops, follows the system light/dark theme, and saves progress in the browser.
 
 ## Running it
@@ -32,8 +33,9 @@ The game is a static site with no server and no API keys. Everything, including 
 1. **Vectors.** Pretrained [GloVe](https://nlp.stanford.edu/projects/glove/) 300-dimensional vectors (Wikipedia + Gigaword).
 2. **Nouns only.** `scripts/build_vectors.py` keeps words that [WordNet](https://wordnet.princeton.edu/) lists as nouns. Of those, words that the tagged Brown corpus shows are *usually* nouns can also be landed on. So `run` can be typed, but a step never lands on it. Plurals, proper nouns, function words and a profanity blocklist are excluded.
 3. **Vocabulary.** The dataset ships ~18.9k nouns players can type. ~10.1k of them (the most frequent, plus every start/goal word) are possible step results.
-4. **A step.** `result = nearest(current ± operand)` by cosine similarity, excluding the current word and the operand. This is the standard rule for word-vector analogies. It also means adding the goal word itself never wins, though a synonym of the goal might.
-5. **Size.** Vectors are unit-normalised and stored as int8 (5.7 MB). Results match full precision in over 99% of steps.
+4. **A step.** `result = nearest(current ± operand)` by cosine similarity, excluding the current word, the operand, and other forms of either (singular/plural). This is the standard rule for word-vector analogies. It also means adding the goal word itself, or its plural, never wins, though a synonym of the goal might.
+5. **Hints.** The ideal step is the vector `goal − current`. The hint takes the 40 typeable words closest to that direction (to add) and the 40 closest to `current − goal` (to subtract), plays each one out under the real rules, and suggests the one that lands closest to the goal.
+6. **Size.** Vectors are unit-normalised and stored as int8 (5.7 MB). Results match full precision in over 99% of steps.
 
 ## Project layout
 
@@ -101,7 +103,7 @@ Write a class that implements `EmbeddingProvider`, add a variant to `EmbeddingCo
 ## Tuning
 
 - **Start/goal words**: edit `src/data/word-pool.json`, then rerun the build script. Pool words are always added to the possible results, so every goal can be reached. Changing the pool or its order changes the daily puzzles.
-- **Closeness tiers**: pass `rankDepth`, `hotRank` and `warmRank` to `new Engine(provider, {...})` in `src/main.ts`.
+- **Closeness tiers and hints**: pass `rankDepth`, `hotRank`, `warmRank` or `hintCandidates` to `new Engine(provider, {...})` in `src/main.ts`.
 - **Blocked or extra words**: `scripts/data/blocklist.txt` and `scripts/data/extra_nouns.txt`. Extra nouns are only added if the vector source contains them. The 2014 GloVe vocabulary has `smartphone` but not `selfie`, for example.
 - **Name / daily start date**: `GAME_NAME` and `DAILY_EPOCH` in `src/config.ts`.
 

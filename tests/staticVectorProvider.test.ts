@@ -41,11 +41,11 @@ describe('StaticVectorProvider', () => {
     expect(excluded.map((r) => r.word)).toEqual(['crown', 'man']);
   });
 
-  it('never lands on input-only words', async () => {
+  it('never lands on input-only words unless asked to search all words', async () => {
     const p = toyProvider();
     const wolves = (await p.getVector('wolves'))!;
-    const [best] = await p.nearest(wolves);
-    expect(best.word).toBe('dog');
+    expect((await p.nearest(wolves))[0].word).toBe('dog');
+    expect((await p.nearest(wolves, { among: 'all' }))[0].word).toBe('wolves');
   });
 
   it('rejects inconsistent datasets', () => {

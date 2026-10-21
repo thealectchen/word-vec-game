@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { dailyPair, msUntilNextPuzzle, puzzleNumber } from '../src/game/daily';
 import type { Round } from '../src/game/engine';
-import { singularCandidates } from '../src/game/inflection';
+import { pluralCandidates, singularCandidates, wordForms } from '../src/game/inflection';
 import { hashString, pickPair, seededRandom } from '../src/game/random';
 import { shareText } from '../src/game/share';
 import { dailyStreak, DISTRIBUTION_BUCKETS, emptyStats, recordRound } from '../src/game/stats';
@@ -23,6 +23,7 @@ function round(overrides: Partial<Round> = {}): Round {
       { from: 'prince', op: 'subtract', operand: 'man', result: 'castle', closeness: goal },
     ],
     status: 'won',
+    hints: 0,
     ...overrides,
   };
 }
@@ -95,6 +96,22 @@ describe('singularCandidates', () => {
     expect(singularCandidates('mice')).toEqual(['mouse']);
     expect(singularCandidates('glass')).toEqual([]);
   });
+
+  it('suggests likely plural forms', () => {
+    expect(pluralCandidates('hand')).toContain('hands');
+    expect(pluralCandidates('box')).toContain('boxes');
+    expect(pluralCandidates('berry')).toContain('berries');
+    expect(pluralCandidates('day')).not.toContain('daies');
+    expect(pluralCandidates('knife')).toContain('knives');
+    expect(pluralCandidates('woman')).toContain('women');
+    expect(pluralCandidates('child')).toContain('children');
+  });
+
+  it('groups a word with its other forms', () => {
+    expect(wordForms('hands')).toEqual(expect.arrayContaining(['hands', 'hand']));
+    expect(wordForms('hand')).toEqual(expect.arrayContaining(['hand', 'hands']));
+    expect(wordForms('children')).toContain('child');
+  });
 });
 
 describe('stats', () => {
@@ -141,6 +158,11 @@ describe('shareText', () => {
     expect(text).not.toContain('king');
   });
 
+  it('mentions hints', () => {
+    expect(shareText(round({ hints: 1 }), 'V').split('\n')[0]).toBe('V #3 · 2 steps · 1 hint');
+    expect(shareText(round({ hints: 3 }), 'V').split('\n')[0]).toBe('V #3 · 2 steps · 3 hints');
+  });
+
   it('marks unlimited rounds and give-ups', () => {
     const text = shareText(round({ mode: 'unlimited', puzzle: null, status: 'gave-up', steps: [round().steps[0]] }), 'V');
     expect(text).toBe('V (unlimited) · gave up after 1 step\nDOG → CASTLE\n🟨❌');
@@ -177,6 +199,14 @@ describe('storage', () => {
     expect(storage.hasSeenHelp()).toBe(false);
     storage.markHelpSeen();
     expect(storage.hasSeenHelp()).toBe(true);
+  });
+
+  it('gives rounds saved before hints existed a hint count of 0', () => {
+    const mem = memoryStorage();
+    const { hints: _, ...old } = round();
+    mem.setItem('vectordle:v1:round:daily', JSON.stringify(old));
+    vi.stubGlobal('localStorage', mem);
+    expect(storage.loadRound('daily')).toEqual(round());
   });
 
   it('survives corrupt data and missing storage', () => {

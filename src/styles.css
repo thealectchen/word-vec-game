@@ -482,6 +482,29 @@ button {
   text-underline-offset: 3px;
 }
 
+.footer-actions {
+  display: flex;
+  gap: 20px;
+}
+
+.text-btn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.hint-text {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  font-size: 0.95rem;
+  text-align: center;
+}
+
+.hint-text strong {
+  font-size: 1.05rem;
+}
+
 .text-btn.is-armed {
   color: #d9534f;
   font-weight: 700;

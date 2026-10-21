@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { currentCloseness, currentWord, Engine, MoveError } from '../src/game/engine';
+import { cosine } from '../src/embeddings/vectorMath';
 import { toyProvider } from './helpers';
 
 const engine = () => new Engine(toyProvider(), { rankDepth: 5, hotRank: 2, warmRank: 5 });
@@ -33,7 +34,7 @@ describe('Engine.parseMove', () => {
 describe('Engine rounds', () => {
   it('starts a round at the start word', async () => {
     const round = await engine().newRound('unlimited', 'king', 'queen');
-    expect(round).toMatchObject({ mode: 'unlimited', puzzle: null, start: 'king', goal: 'queen', status: 'playing' });
+    expect(round).toMatchObject({ mode: 'unlimited', puzzle: null, start: 'king', goal: 'queen', status: 'playing', hints: 0 });
     expect(currentWord(round)).toBe('king');
     expect(round.startCloseness.tier).not.toBe('goal');
   });
@@ -63,6 +64,14 @@ describe('Engine rounds', () => {
     expect(currentWord(round)).not.toBe('queen');
   });
 
+  it('never lands on another form of the typed word', async () => {
+    const e = engine();
+    // "queens" points straight at "queen", but plural and singular count as the same word.
+    const round = await e.play(await e.newRound('unlimited', 'crown', 'queen'), 'add', 'queens');
+    expect(currentWord(round)).not.toBe('queen');
+    expect(round.status).toBe('playing');
+  });
+
   it('refuses to subtract the current word from itself', async () => {
     const e = engine();
     const round = await e.newRound('unlimited', 'dog', 'sea');
@@ -85,6 +94,42 @@ describe('Engine rounds', () => {
     const next = await e.play(round, 'add', 'sea');
     expect(round.steps).toHaveLength(0);
     expect(next.steps).toHaveLength(1);
+  });
+});
+
+describe('Engine.hint', () => {
+  it('finds a move that reaches the goal when one exists', async () => {
+    const e = engine();
+    const round = await e.newRound('unlimited', 'crown', 'queen');
+    const hint = await e.hint(round);
+    expect(hint).toMatchObject({ op: 'add', word: 'woman', result: 'queen', improves: true });
+    expect(hint!.closeness.tier).toBe('goal');
+    expect((await e.play(round, hint!.op, hint!.word)).status).toBe('won');
+  });
+
+  it('predicts exactly where the suggested move lands', async () => {
+    const e = engine();
+    for (const [start, goal] of [['dog', 'sea'], ['king', 'fish'], ['cat', 'crown']]) {
+      const round = await e.newRound('unlimited', start, goal);
+      const hint = (await e.hint(round))!;
+      expect(hint.word).not.toBe(start);
+      const played = await e.play(round, hint.op, hint.word);
+      expect(currentWord(played)).toBe(hint.result);
+    }
+  });
+
+  it('says whether the suggestion actually gets closer', async () => {
+    const e = engine();
+    const p = e.provider;
+    const round = await e.newRound('unlimited', 'dog', 'sea');
+    const hint = (await e.hint(round))!;
+    const [dog, sea, result] = await Promise.all([p.getVector('dog'), p.getVector('sea'), p.getVector(hint.result)]);
+    expect(hint.improves).toBe(hint.result === 'sea' || cosine(result!, sea!) > cosine(dog!, sea!));
+  });
+
+  it('gives no hint once the round is over', async () => {
+    const e = engine();
+    expect(await e.hint(e.giveUp(await e.newRound('unlimited', 'dog', 'sea')))).toBeNull();
   });
 });
 
