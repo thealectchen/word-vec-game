@@ -1,0 +1,12 @@
+{
+  "format": "word-vectors/int8-v1",
+  "id": "potion-base-32m-nouns",
+  "name": "potion-base-32M (Model2Vec)",
+  "attribution": "Model2Vec potion models by Minish Lab (MIT), github.com/MinishLab/model2vec",
+  "license": "MIT",
+  "dimensions": 512,
+  "wordCount": 18910,
+  "answerCount": 10100,
+  "words": "words.txt",
+  "vectors": "vectors.bin"
+}

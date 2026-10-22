@@ -179,6 +179,47 @@ def read_vectors(path: Path, max_rank: int, also_keep: set[str]):
             yield rank, word, vec
 
 
+def write_dataset(
+    out_dir: Path,
+    words: list[str],
+    matrix: np.ndarray,
+    answer_count: int,
+    *,
+    dataset_id: str,
+    name: str,
+    attribution: str = "",
+    license_: str = "",
+) -> None:
+    """Write manifest.json, words.txt and vectors.bin. The first `answer_count`
+    rows are the words a step can land on."""
+    matrix = matrix.astype(np.float32)
+    matrix /= np.linalg.norm(matrix, axis=1, keepdims=True)
+    quantized = np.round(matrix / np.abs(matrix).max(axis=1, keepdims=True) * 127).astype(np.int8)
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "words.txt").write_text("\n".join(words) + "\n", encoding="utf8")
+    (out_dir / "vectors.bin").write_bytes(quantized.tobytes())
+    manifest = {
+        "format": "word-vectors/int8-v1",
+        "id": dataset_id,
+        "name": name,
+        "attribution": attribution,
+        "license": license_,
+        "dimensions": int(matrix.shape[1]),
+        "wordCount": len(words),
+        "answerCount": answer_count,
+        "words": "words.txt",
+        "vectors": "vectors.bin",
+    }
+    (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf8")
+    size_mb = (out_dir / "vectors.bin").stat().st_size / 1e6
+    print(
+        f"Wrote {out_dir}: {len(words)} words ({answer_count} answers), "
+        f"{matrix.shape[1]} dims, vectors.bin {size_mb:.1f} MB",
+        file=sys.stderr,
+    )
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     src = p.add_mutually_exclusive_group(required=True)
@@ -237,32 +278,15 @@ def main() -> None:
     answers.extend((w, pool_vectors[w]) for w in pool if w in pool_vectors)
 
     rows = answers + inputs_only
-    words = [w for w, _ in rows]
-    matrix = np.stack([v for _, v in rows]).astype(np.float32)
-    matrix /= np.linalg.norm(matrix, axis=1, keepdims=True)
-    quantized = np.round(matrix / np.abs(matrix).max(axis=1, keepdims=True) * 127).astype(np.int8)
-
-    out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "words.txt").write_text("\n".join(words) + "\n", encoding="utf8")
-    (out_dir / "vectors.bin").write_bytes(quantized.tobytes())
-    manifest = {
-        "format": "word-vectors/int8-v1",
-        "id": dataset_id,
-        "name": name,
-        "attribution": attribution,
-        "license": license_,
-        "dimensions": int(matrix.shape[1]),
-        "wordCount": len(words),
-        "answerCount": len(answers),
-        "words": "words.txt",
-        "vectors": "vectors.bin",
-    }
-    (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf8")
-    size_mb = (out_dir / "vectors.bin").stat().st_size / 1e6
-    print(
-        f"Wrote {out_dir}: {len(words)} words ({len(answers)} answers), "
-        f"{matrix.shape[1]} dims, vectors.bin {size_mb:.1f} MB",
-        file=sys.stderr,
+    write_dataset(
+        out_dir,
+        [w for w, _ in rows],
+        np.stack([v for _, v in rows]),
+        len(answers),
+        dataset_id=dataset_id,
+        name=name,
+        attribution=attribution,
+        license_=license_,
     )
 
 

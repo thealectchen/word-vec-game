@@ -54,8 +54,9 @@ src/
     stats.ts, storage.ts        stats/streaks and localStorage persistence
     share.ts, inflection.ts     share text, plural -> singular fallback
   ui/                           DOM rendering (no framework)
-public/data/glove-300d-nouns/   the shipped dataset (generated)
+public/data/<dataset>/          shipped datasets (generated): GloVe (default), potion-base-32M
 scripts/build_vectors.py        builds a dataset from any word2vec/GloVe text file
+scripts/build_model2vec.py      builds a dataset from a Model2Vec token-embedding model
 scripts/data/                   stopwords, blocklist, extra modern nouns
 tests/                          Vitest tests
 ```
@@ -96,6 +97,26 @@ Useful flags:
 
 Downloads are cached in `scripts/.cache/`.
 
+#### Model2Vec token-embedding models
+
+`scripts/build_model2vec.py` builds a dataset from a [Model2Vec](https://github.com/MinishLab/model2vec) model, such as Minish Lab's potion models. These tokenize a word and average its token vectors. The script reuses the GloVe dataset's noun list, so the two datasets differ only in their vectors:
+
+```bash
+.venv/bin/python scripts/build_model2vec.py --model minishlab/potion-base-32M \
+  --id potion-base-32m-nouns --name "potion-base-32M (Model2Vec)"
+```
+
+`--model` also accepts a local folder containing `config.json`, `model.safetensors` and `tokenizer.json`.
+
+#### Shipped datasets
+
+| Dataset (`?data=`) | Dims | Size | Analogies right (top-1) | Moves that bounce straight back | MALE · FEMALE similarity |
+|---|---|---|---|---|---|
+| `glove-300d-nouns` (default) | 300 | 5.7 MB | 16 / 24 | 17% | 0.89 |
+| `potion-base-32m-nouns` | 512 | 9.7 MB | 10 / 24 | 35% | 0.09 |
+
+potion-base-32M doesn't treat MALE and FEMALE as twins, but overall it bounces back more often, does worse on analogies, and often matches words by spelling (dog → dogma, castle + sand → sander). So GloVe stays the default. Play the potion version with `?data=potion-base-32m-nouns`.
+
 ### Option 2: a different kind of source (server, embeddings API, ...)
 
 Write a class that implements `EmbeddingProvider`, add a variant to `EmbeddingConfig` in `src/embeddings/index.ts`, and handle it in `createProvider()`. The interface is async, so a provider can fetch vectors or run `nearest()` on a server. Nothing in `src/game/` or `src/ui/` needs to change.
@@ -110,4 +131,5 @@ Write a class that implements `EmbeddingProvider`, add a variant to `EmbeddingCo
 ## Credits
 
 - Word vectors: GloVe, Jeffrey Pennington, Richard Socher and Christopher D. Manning (2014), Public Domain Dedication and License (PDDL).
+- Alternative vectors: potion-base-32M by Minish Lab (Model2Vec), MIT license.
 - Noun filtering at build time: WordNet 3.0 (Princeton University) and the Brown corpus, via NLTK. Neither is shipped with the game.

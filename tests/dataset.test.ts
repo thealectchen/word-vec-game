@@ -1,26 +1,37 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { DEFAULT_DATASET } from '../src/config';
 import { StaticVectorProvider, type DatasetManifest } from '../src/embeddings/staticVectorProvider';
 import { Engine } from '../src/game/engine';
 import { WORD_POOL } from '../src/game/wordPool';
 
-/** Checks the dataset that actually ships in public/data/. */
-const dir = resolve(import.meta.dirname, '../public/data', DEFAULT_DATASET);
-let provider: StaticVectorProvider;
-let manifest: DatasetManifest;
-let answers: Set<string>;
+/** Checks the datasets that actually ship in public/data/. */
+const DATA_DIR = resolve(import.meta.dirname, '../public/data');
+const DATASETS = readdirSync(DATA_DIR, { withFileTypes: true })
+  .filter((entry) => entry.isDirectory())
+  .map((entry) => entry.name);
 
-beforeAll(() => {
-  manifest = JSON.parse(readFileSync(resolve(dir, 'manifest.json'), 'utf8'));
+function loadDataset(name: string) {
+  const dir = resolve(DATA_DIR, name);
+  const manifest: DatasetManifest = JSON.parse(readFileSync(resolve(dir, 'manifest.json'), 'utf8'));
   const words = readFileSync(resolve(dir, manifest.words), 'utf8').split('\n').filter(Boolean);
   const bytes = readFileSync(resolve(dir, manifest.vectors));
-  provider = new StaticVectorProvider(manifest, words, new Int8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength));
-  answers = new Set(words.slice(0, manifest.answerCount));
+  const provider = new StaticVectorProvider(manifest, words, new Int8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength));
+  return { manifest, provider, answers: new Set(words.slice(0, manifest.answerCount)) };
+}
+
+it('ships the default dataset', () => {
+  expect(DATASETS).toContain(DEFAULT_DATASET);
 });
 
-describe(`dataset ${DEFAULT_DATASET}`, () => {
+describe.each(DATASETS)('dataset %s', (name) => {
+  const { manifest, provider, answers } = loadDataset(name);
+
+  it('has a manifest whose id matches its folder', () => {
+    expect(manifest.id).toBe(name);
+  });
+
   it('can land on every start/goal word', () => {
     expect(WORD_POOL.filter((w) => !answers.has(w))).toEqual([]);
   });
@@ -38,6 +49,10 @@ describe(`dataset ${DEFAULT_DATASET}`, () => {
       expect(round.steps[0].result).not.toBe('hand');
     }
   });
+});
+
+describe(`default dataset ${DEFAULT_DATASET}`, () => {
+  const { provider } = loadDataset(DEFAULT_DATASET);
 
   it('finds hints quickly, and they land where they say', async () => {
     const engine = new Engine(provider);
